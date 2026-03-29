@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>CyberDino: Ultra Edition</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #0d0d0d;
+            color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #00ffcc;
+            box-shadow: 0 0 20px #00ffcc;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+        }
+        .ui { margin-bottom: 10px; text-align: center; }
+        select { background: #000; color: #0ff; border: 1px solid #0ff; padding: 5px; cursor: pointer; }
+        .stats { margin-top: 10px; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div class="ui">
+        <label>СЛОЖНОСТЬ: </label>
+        <select id="difficulty">
+            <option value="easy">ЛЕГКИЙ</option>
+            <option value="normal" selected>НОРМАЛЬНЫЙ</option>
+            <option value="hard">СЛОЖНЫЙ</option>
+            <option value="extreme">ЭКСТРИМ</option>
+            <option value="impossible">НЕВОЗМОЖНО</option>
+        </select>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="200"></canvas>
+
+    <div class="stats">
+        СЧЕТ: <span id="score">0</span> | РЕКОРД: <span id="best">0</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const bestEl = document.getElementById('best');
+        const diffSelect = document.getElementById('difficulty');
+
+        // Настройки сложности
+        const diffSettings = {
+            easy: { speed: 5, gap: 120 },
+            normal: { speed: 8, gap: 90 },
+            hard: { speed: 12, gap: 60 },
+            extreme: { speed: 18, gap: 40 },
+            impossible: { speed: 25, gap: 25 }
+        };
+
+        let score = 0;
+        let bestScore = localStorage.getItem('dinoBestScore') || 0;
+        bestEl.textContent = bestScore;
+
+        let gameActive = true;
+        let dino = { x: 50, y: 150, w: 40, h: 40, dy: 0, jumpForce: 12, gravity: 0.6, grounded: false };
+        let obstacles = [];
+        let frame = 0;
+
+        // Управление
+        window.addEventListener('keydown', (e) => {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && dino.grounded) {
+                dino.dy = -dino.jumpForce;
+                dino.grounded = false;
+            }
+            if (!gameActive && e.code === 'Enter') resetGame();
+        });
+
+        function resetGame() {
+            score = 0;
+            obstacles = [];
+            gameActive = true;
+            dino.y = 150;
+            dino.dy = 0;
+            loop();
+        }
+
+        function loop() {
+            if (!gameActive) return;
+
+            const mode = diffSettings[diffSelect.value];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Гравитация и прыжок
+            dino.dy += dino.gravity;
+            dino.y += dino.dy;
+
+            if (dino.y + dino.h > canvas.height - 10) {
+                dino.y = canvas.height - 10 - dino.h;
+                dino.dy = 0;
+                dino.grounded = true;
+            }
+
+            // Отрисовка Дино (Кибер-версия)
+            ctx.fillStyle = '#00ffcc';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00ffcc';
+            ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+            ctx.shadowBlur = 0; // Сброс тени для остального
+
+            // Препятствия
+            if (frame % mode.gap === 0) {
+                obstacles.push({ x: canvas.width, w: 20, h: 30 + Math.random() * 30 });
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let o = obstacles[i];
+                o.x -= mode.speed;
+
+                // Отрисовка препятствия (Неоновые шипы)
+                ctx.fillStyle = '#ff0055';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ff0055';
+                ctx.fillRect(o.x, canvas.height - 10 - o.h, o.w, o.h);
+                ctx.shadowBlur = 0;
+
+                // Коллизия (смерть)
+                if (dino.x < o.x + o.w && dino.x + dino.w > o.x && dino.y < canvas.height - 10 && dino.y + dino.h > canvas.height - 10 - o.h) {
+                    gameOver();
+                }
+
+                if (o.x + o.w < 0) obstacles.splice(i, 1);
+            }
+
+            score++;
+            scoreEl.textContent = score;
+            frame++;
+            requestAnimationFrame(loop);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('dinoBestScore', bestScore); // СОХРАНЕНИЕ ПРОГРЕССА
+                bestEl.textContent = bestScore;
+            }
+            ctx.fillStyle = "rgba(0,0,0,0.7)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#fff";
+            ctx.font = "30px Arial";
+            ctx.fillText("ПИЗДЕЦ, ТЫ ПРОИГРАЛ!", 220, 100);
+            ctx.font = "20px Arial";
+            ctx.fillText("Жми ENTER, чтобы ебашить снова", 235, 140);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
