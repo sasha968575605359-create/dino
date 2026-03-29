@@ -2,141 +2,265 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>CyberDino: Ultra Edition</title>
+    <title>CyberDino: The Menu Edition</title>
     <style>
         body {
             margin: 0;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
-            background: #0d0d0d;
+            background: #050505;
             color: #00ffcc;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
+            user-select: none;
         }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 300px;
+        }
+
         canvas {
+            display: block;
+            background: linear-gradient(to bottom, #0a0a12, #111122);
             border: 2px solid #00ffcc;
-            box-shadow: 0 0 20px #00ffcc;
-            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+            border-radius: 8px;
         }
-        .ui { margin-bottom: 10px; text-align: center; }
-        select { background: #000; color: #0ff; border: 1px solid #0ff; padding: 5px; cursor: pointer; }
-        .stats { margin-top: 10px; font-size: 1.2rem; }
+
+        /* Стиль Меню */
+        #menu-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 8px;
+            transition: opacity 0.3s;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0 0 20px 0;
+            text-shadow: 0 0 15px #00ffcc;
+            letter-spacing: 5px;
+        }
+
+        .difficulty-box {
+            margin-bottom: 25px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .diff-btn {
+            background: transparent;
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .diff-btn.active {
+            background: #00ffcc;
+            color: #000;
+            box-shadow: 0 0 15px #00ffcc;
+        }
+
+        .diff-btn:hover:not(.active) {
+            background: rgba(0, 255, 204, 0.2);
+        }
+
+        #start-btn {
+            background: #ff0055;
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 20px #ff0055;
+            transition: 0.2s;
+        }
+
+        #start-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px #ff0055;
+        }
+
+        .best-score-ui {
+            margin-top: 15px;
+            font-size: 1rem;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
 
-    <div class="ui">
-        <label>СЛОЖНОСТЬ: </label>
-        <select id="difficulty">
-            <option value="easy">ЛЕГКИЙ</option>
-            <option value="normal" selected>НОРМАЛЬНЫЙ</option>
-            <option value="hard">СЛОЖНЫЙ</option>
-            <option value="extreme">ЭКСТРИМ</option>
-            <option value="impossible">НЕВОЗМОЖНО</option>
-        </select>
-    </div>
+    <div id="game-container">
+        <div id="menu-overlay">
+            <h1>CYBER DINO</h1>
+            
+            <div class="difficulty-box" id="diff-container">
+                <button class="diff-btn" data-level="easy">Легко</button>
+                <button class="diff-btn active" data-level="normal">Норм</button>
+                <button class="diff-btn" data-level="hard">Сложно</button>
+                <button class="diff-btn" data-level="extreme">Экстрим</button>
+                <button class="diff-btn" data-level="impossible">АД</button>
+            </div>
 
-    <canvas id="gameCanvas" width="800" height="200"></canvas>
+            <button id="start-btn">В БОЙ</button>
+            
+            <div class="best-score-ui">РЕКОРД: <span id="best-score-display">0</span></div>
+        </div>
 
-    <div class="stats">
-        СЧЕТ: <span id="score">0</span> | РЕКОРД: <span id="best">0</span>
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const bestEl = document.getElementById('best');
-        const diffSelect = document.getElementById('difficulty');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const startBtn = document.getElementById('start-btn');
+        const bestDisplay = document.getElementById('best-score-display');
+        const diffButtons = document.querySelectorAll('.diff-btn');
 
         // Настройки сложности
         const diffSettings = {
-            easy: { speed: 5, gap: 120 },
-            normal: { speed: 8, gap: 90 },
-            hard: { speed: 12, gap: 60 },
-            extreme: { speed: 18, gap: 40 },
-            impossible: { speed: 25, gap: 25 }
+            easy: { speed: 6, gap: 110 },
+            normal: { speed: 9, gap: 80 },
+            hard: { speed: 13, gap: 55 },
+            extreme: { speed: 19, gap: 35 },
+            impossible: { speed: 28, gap: 20 }
         };
 
+        let currentDiff = 'normal';
         let score = 0;
-        let bestScore = localStorage.getItem('dinoBestScore') || 0;
-        bestEl.textContent = bestScore;
+        let bestScore = localStorage.getItem('dinoBestScoreV3') || 0;
+        bestDisplay.textContent = bestScore;
 
-        let gameActive = true;
-        let dino = { x: 50, y: 150, w: 40, h: 40, dy: 0, jumpForce: 12, gravity: 0.6, grounded: false };
+        let gameActive = false;
+        let groundY = canvas.height - 30;
+
+        // Игрок
+        let dino = { 
+            x: 60, y: 0, w: 45, h: 50, 
+            dy: 0, jumpForce: 17, gravity: 1.3, grounded: false 
+        };
+
         let obstacles = [];
         let frame = 0;
 
-        // Управление
-        window.addEventListener('keydown', (e) => {
-            if ((e.code === 'Space' || e.code === 'ArrowUp') && dino.grounded) {
-                dino.dy = -dino.jumpForce;
-                dino.grounded = false;
-            }
-            if (!gameActive && e.code === 'Enter') resetGame();
+        // Выбор сложности
+        diffButtons.forEach(btn => {
+            btn.onclick = () => {
+                diffButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentDiff = btn.dataset.level;
+            };
         });
+
+        // Старт игры
+        startBtn.onclick = () => {
+            menuOverlay.style.opacity = '0';
+            setTimeout(() => {
+                menuOverlay.style.display = 'none';
+                resetGame();
+            }, 300);
+        };
 
         function resetGame() {
             score = 0;
             obstacles = [];
             gameActive = true;
-            dino.y = 150;
+            dino.y = groundY - dino.h;
             dino.dy = 0;
             loop();
         }
 
+        function drawDino(x, y) {
+            ctx.fillStyle = '#00ffcc';
+            ctx.shadowBlur = 15; ctx.shadowColor = '#00ffcc';
+            ctx.fillRect(x + 10, y + 10, 25, 25); // Тело
+            ctx.fillRect(x + 25, y, 15, 15);     // Голова
+            ctx.fillRect(x + 35, y + 5, 12, 8);  // Морда
+            ctx.fillStyle = '#000';
+            ctx.fillRect(x + 32, y + 3, 3, 3);   // Глаз
+            ctx.fillStyle = '#00ffcc';
+            ctx.fillRect(x + 15, y + 35, 7, 15); // Нога 1
+            ctx.fillRect(x + 28, y + 35, 7, 15); // Нога 2
+            ctx.shadowBlur = 0;
+        }
+
+        function drawObstacle(x, y, w, h) {
+            ctx.fillStyle = '#ff0055';
+            ctx.shadowBlur = 15; ctx.shadowColor = '#ff0055';
+            ctx.fillRect(x, y, w, h);
+            ctx.shadowBlur = 0;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && dino.grounded && gameActive) {
+                dino.dy = -dino.jumpForce;
+                dino.grounded = false;
+            }
+        });
+
         function loop() {
             if (!gameActive) return;
 
-            const mode = diffSettings[diffSelect.value];
+            const mode = diffSettings[currentDiff];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Гравитация и прыжок
+            // Земля
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, groundY, canvas.width, 2);
+
+            // Физика
             dino.dy += dino.gravity;
             dino.y += dino.dy;
-
-            if (dino.y + dino.h > canvas.height - 10) {
-                dino.y = canvas.height - 10 - dino.h;
+            if (dino.y + dino.h > groundY) {
+                dino.y = groundY - dino.h;
                 dino.dy = 0;
                 dino.grounded = true;
             }
 
-            // Отрисовка Дино (Кибер-версия)
-            ctx.fillStyle = '#00ffcc';
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#00ffcc';
-            ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
-            ctx.shadowBlur = 0; // Сброс тени для остального
+            drawDino(dino.x, dino.y);
 
             // Препятствия
             if (frame % mode.gap === 0) {
-                obstacles.push({ x: canvas.width, w: 20, h: 30 + Math.random() * 30 });
+                obstacles.push({ x: canvas.width, w: 25, h: 30 + Math.random() * 45 });
             }
 
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let o = obstacles[i];
                 o.x -= mode.speed;
+                drawObstacle(o.x, groundY - o.h, o.w, o.h);
 
-                // Отрисовка препятствия (Неоновые шипы)
-                ctx.fillStyle = '#ff0055';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#ff0055';
-                ctx.fillRect(o.x, canvas.height - 10 - o.h, o.w, o.h);
-                ctx.shadowBlur = 0;
-
-                // Коллизия (смерть)
-                if (dino.x < o.x + o.w && dino.x + dino.w > o.x && dino.y < canvas.height - 10 && dino.y + dino.h > canvas.height - 10 - o.h) {
+                // Столкновение
+                if (dino.x + 5 < o.x + o.w && dino.x + dino.w - 5 > o.x && 
+                    dino.y + 5 < groundY && dino.y + dino.h > groundY - o.h) {
                     gameOver();
                 }
-
                 if (o.x + o.w < 0) obstacles.splice(i, 1);
             }
 
+            // Счет
             score++;
-            scoreEl.textContent = score;
+            ctx.fillStyle = "#fff";
+            ctx.font = "20px Arial";
+            ctx.textAlign = "left";
+            ctx.fillText(`СЧЕТ: ${score}`, 20, 40);
+
             frame++;
             requestAnimationFrame(loop);
         }
@@ -145,19 +269,20 @@
             gameActive = false;
             if (score > bestScore) {
                 bestScore = score;
-                localStorage.setItem('dinoBestScore', bestScore); // СОХРАНЕНИЕ ПРОГРЕССА
-                bestEl.textContent = bestScore;
+                localStorage.setItem('dinoBestScoreV3', bestScore);
+                bestDisplay.textContent = bestScore;
             }
-            ctx.fillStyle = "rgba(0,0,0,0.7)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#fff";
-            ctx.font = "30px Arial";
-            ctx.fillText("ПИЗДЕЦ, ТЫ ПРОИГРАЛ!", 220, 100);
-            ctx.font = "20px Arial";
-            ctx.fillText("Жми ENTER, чтобы ебашить снова", 235, 140);
+            
+            // Возвращаем меню
+            setTimeout(() => {
+                menuOverlay.style.display = 'flex';
+                menuOverlay.style.opacity = '1';
+                document.querySelector('h1').textContent = "ТЫ ПРОЕБАЛ";
+                document.querySelector('h1').style.color = "#ff0055";
+                document.querySelector('h1').style.textShadow = "0 0 15px #ff0055";
+                startBtn.textContent = "ПОПРОБОВАТЬ СНОВА";
+            }, 500);
         }
-
-        loop();
     </script>
 </body>
 </html>
